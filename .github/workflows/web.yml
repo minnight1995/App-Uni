@@ -1,0 +1,49 @@
+name: Publicar web
+
+on: workflow_dispatch
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Descomprimir el proyecto
+        run: |
+          unzip -q Studybuddy.zip
+          # el ZIP no traía pubspec.yaml: si lo subiste aparte, se copia dentro
+          [ -f pubspec.yaml ] && cp pubspec.yaml unibuddy/ || true
+          [ -f pubspec.lock ] && cp pubspec.lock unibuddy/ || true
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Agregar soporte web
+        working-directory: unibuddy
+        run: flutter create . --platforms=web --project-name unibuddy
+
+      - name: Compilar
+        working-directory: unibuddy
+        run: |
+          flutter pub get
+          flutter build web --release --base-href "/${{ github.event.repository.name }}/"
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: unibuddy/build/web
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
